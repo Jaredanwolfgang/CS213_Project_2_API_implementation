@@ -24,18 +24,18 @@ public class BenchmarkService {
     private BenchmarkConfig config;
 
     @Autowired
-    private DanmuService danmuService;
-
-    @Autowired
     private DatabaseService databaseService;
 
-    @Autowired
+    @Autowired(required = false)
+    private DanmuService danmuService;
+
+    @Autowired(required = false)
     private RecommenderService recommenderService;
 
-    @Autowired
+    @Autowired(required = false)
     private UserService userService;
 
-    @Autowired
+    @Autowired(required = false)
     private VideoService videoService;
 
     @Autowired
