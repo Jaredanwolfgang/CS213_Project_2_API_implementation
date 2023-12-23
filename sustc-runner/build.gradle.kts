@@ -14,13 +14,22 @@ dependencies {
             .takeIf { !it.isEmpty } ?: project(":sustc-api")
     )
     runtimeOnly("org.postgresql:postgresql")
+<<<<<<< HEAD
     implementation("com.opencsv:opencsv:5.8")
     implementation("commons-io:commons-io:2.15.0")
+=======
+
+    implementation("org.apache.commons:commons-lang3")
+    implementation("com.fasterxml.jackson.core:jackson-databind")
+>>>>>>> upstream/benchmark
     implementation("org.furyio:fury-core:0.3.1")
 
     implementation(platform("org.springframework.shell:spring-shell-dependencies:2.1.13"))
     implementation("org.springframework.shell:spring-shell-starter")
+<<<<<<< HEAD
     annotationProcessor("org.springframework.boot:spring-boot-configuration-processor")
+=======
+>>>>>>> upstream/benchmark
 }
 
 tasks.withType<JavaExec> {

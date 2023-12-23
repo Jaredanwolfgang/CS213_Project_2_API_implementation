@@ -44,7 +44,7 @@ public interface DanmuService {
      *     {@code timeStart} and/or {@code timeEnd} is invalid ({@code timeStart} <= {@code timeEnd}
      *     or any of them < 0 or > video duration)
      *   </li>
-     *   <li>the video is not published</li>
+     * <li>the video is not published</li>
      * </ul>
      * If any of the corner case happened, {@code null} shall be returned.
      */
