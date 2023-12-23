@@ -49,20 +49,6 @@ public class DatabaseServiceImpl implements DatabaseService {
         System.out.println(userRecords.size());
         System.out.println(videoRecords.size());
         int batch = 50000;
-        //Drop Constraints
-        try(Connection conn = dataSource.getConnection()){
-            String disable_constraints = "SELECT drop_constraints_foreign_keys()";
-            long startTime = System.currentTimeMillis();
-            try (PreparedStatement stmt_disable = conn.prepareStatement(disable_constraints)){
-                stmt_disable.executeQuery();
-            } catch (SQLException e) {
-                e.printStackTrace(); 
-            }
-            long endTime = System.currentTimeMillis();
-            System.out.println("The disable constraints time is " + (endTime - startTime) + " ms");
-        }catch(SQLException e){
-            System.out.println("Connection Timeout!");
-        }
         //Thread 1 insert user_info and follow
         Thread thread_1 = new Thread(new Runnable() {
             @Override
