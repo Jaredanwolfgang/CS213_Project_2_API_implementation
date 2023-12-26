@@ -309,6 +309,32 @@ public class DatabaseServiceImpl implements DatabaseService {
                     }
                     long coinInsertEndTime = System.currentTimeMillis();
                     System.out.println("[Thread 4] The coin/fav insertion time is " + (coinInsertEndTime - coinInsertStartTime) + " ms");
+
+                    //Add view
+                    String view_public_video_sql = "CREATE OR REPLACE VIEW public_video AS\r\n" + //
+                            "    SELECT video_info.bv AS bv\r\n" + //
+                            "    FROM video_info\r\n" + //
+                            "    where reviewtime IS NOT NULL\r\n" + //
+                            "    AND publictime < NOW()\r\n" + //
+                            "    AND reviewtime < NOW();";
+                    String view_watch_rate_sql = "CREATE OR REPLACE VIEW watch_rate AS\r\n" + //
+                            "SELECT video_info.bv AS bv, avg(watch.watchduration/video_info.duration) AS watch_rate\r\n" + //
+                            "FROM video_info, watch\r\n" + //
+                            "WHERE video_info.bv = watch.bv\r\n" + //
+                            "GROUP BY video_info.bv;";
+                    long viewInsertStartTime = System.currentTimeMillis();
+                    try(PreparedStatement view_stmt = conn_4.prepareStatement(view_public_video_sql);
+                        PreparedStatement view_stmt_2 = conn_4.prepareStatement(view_watch_rate_sql)){
+                        view_stmt.executeUpdate();
+                        view_stmt_2.executeUpdate();
+                        conn_4.commit();
+                        view_stmt.close();
+                        view_stmt_2.close();
+                    }catch(SQLException e){
+                        System.out.println("[Thread 4] View Insertion failed.");
+                    }
+                    long viewInsertEndTime = System.currentTimeMillis();
+                    System.out.println("[Thread 4] The view insertion time is " + (viewInsertEndTime - viewInsertStartTime) + " ms");
                 }catch(SQLException e){
                     System.out.println("Connection 4 timeout!");
                 }

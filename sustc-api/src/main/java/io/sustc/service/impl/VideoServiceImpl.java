@@ -4,6 +4,8 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Array;
+import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 
@@ -167,7 +169,7 @@ public class VideoServiceImpl implements VideoService {
      *     but can be counted for different keywords.
      *   </li>
      *   <li>If two videos have the same relevance, sort them by the number of views.</li>
-     * </u
+     * </ul>
      * <p>
      * Examples:
      * <ol>
@@ -203,8 +205,38 @@ public class VideoServiceImpl implements VideoService {
      * If any of the corner case happened, {@code null} shall be returned.
      */
     public List<String> searchVideo(AuthInfo auth, String keywords, int pageSize, int pageNum) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'searchVideo'");
+        if(keywords == null || keywords.isEmpty() || pageSize <= 0 || pageNum <= 0){
+            return null;
+        }
+        String[] keyword = keywords.split(" ");
+        String searchVideoSql = "SELECT search_video(?, ?, ?, ?, ?, ?, ?)";
+        List<String> result = null;
+        try(Connection conn = dataSource.getConnection();
+            PreparedStatement stmt = conn.prepareStatement(searchVideoSql)) {
+            Array keywordArray = conn.createArrayOf("varchar", keyword);
+            stmt.setLong(1, auth.getMid());
+            stmt.setString(2,auth.getPassword());
+            stmt.setString(3, auth.getQq());
+            stmt.setString(4, auth.getWechat());
+            stmt.setArray(5, keywordArray);
+            stmt.setInt(6, pageSize);
+            stmt.setInt(7, pageNum);
+            ResultSet resultset = stmt.executeQuery();
+            if(resultset.next()){
+                Array array = resultset.getArray(1);
+                if(array != null){
+                    String[] result_set = (String[]) array.getArray();
+                    result = List.of(result_set);
+                    return result;
+                }else{
+                    return null;
+                }
+            }
+            return null;
+        } catch (SQLException e) {
+            log.error("Failed to search video", e);
+            return null;
+        }
     }
 
     @Override
@@ -252,8 +284,23 @@ public class VideoServiceImpl implements VideoService {
      * If any of the corner case happened, an empty set shall be returned.
      */
     public Set<Integer> getHotspot(String bv) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'getHotspot'");
+        String getHotspot = "SELECT get_hotspot(?)";
+        Set<Integer> result = Set.of();
+        try(Connection conn = dataSource.getConnection();
+            PreparedStatement stmt = conn.prepareStatement(getHotspot)) {
+            stmt.setString(1, bv);
+            ResultSet resultset = stmt.executeQuery();
+            if(resultset.next()){
+                Array array = resultset.getArray(1);
+                Integer[] result_set = (Integer[]) array.getArray();
+                result = Set.of(result_set);
+                return result;
+            }
+            return result;
+        } catch (SQLException e) {
+            log.error("Failed to get hotspot", e);
+            return result;
+        }
     }
 
     @Override
@@ -350,8 +397,23 @@ public class VideoServiceImpl implements VideoService {
      * If any of the corner case happened, {@code false} shall be returned.
      */
     public boolean likeVideo(AuthInfo auth, String bv) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'likeVideo'");
+        String likeVideo = "SELECT like_video(?, ?, ?, ?, ?)";
+        try(Connection conn = dataSource.getConnection();
+            PreparedStatement stmt = conn.prepareStatement(likeVideo)) {
+            stmt.setLong(1, auth.getMid());
+            stmt.setString(2,auth.getPassword());
+            stmt.setString(3, auth.getQq());
+            stmt.setString(4, auth.getWechat());
+            stmt.setString(5, bv);
+            ResultSet resultset = stmt.executeQuery();
+            if(resultset.next()){
+                return resultset.getBoolean(1);
+            }
+            return false;
+        } catch (SQLException e) {
+            log.error("Failed to like video", e);
+            return false;
+        }
     }
 
     @Override
@@ -373,8 +435,23 @@ public class VideoServiceImpl implements VideoService {
      * If any of the corner case happened, {@code false} shall be returned.
      */
     public boolean collectVideo(AuthInfo auth, String bv) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'collectVideo'");
+        String collectVideo = "SELECT collect_video(?, ?, ?, ?, ?)";
+        try(Connection conn = dataSource.getConnection();
+            PreparedStatement stmt = conn.prepareStatement(collectVideo)) {
+            stmt.setLong(1, auth.getMid());
+            stmt.setString(2,auth.getPassword());
+            stmt.setString(3, auth.getQq());
+            stmt.setString(4, auth.getWechat());
+            stmt.setString(5, bv);
+            ResultSet resultset = stmt.executeQuery();
+            if(resultset.next()){
+                return resultset.getBoolean(1);
+            }
+            return false;
+        } catch (SQLException e) {
+            log.error("Failed to collect video", e);
+            return false;
+        }
     }
     
 }
