@@ -1,6 +1,7 @@
 package io.sustc.service.impl;
 
 import java.sql.Timestamp;
+import java.sql.Array;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -149,86 +150,30 @@ public class DanmuServiceImpl implements DanmuService{
      */
     @Override
     public List<Long> displayDanmu(String bv, float timeStart, float timeEnd, boolean filter){
-        List<Long> result_danmus = new ArrayList<>();
-        
-        try (Connection conn = dataSource.getConnection()){
-            //Check whether the bv is valid.
-            String validation_bv = "SELECT is_bv_valid (?)";
-            try(PreparedStatement stmt = conn.prepareStatement(validation_bv)){
-                stmt.setString(1, bv);
-                ResultSet resultSet = stmt.executeQuery();
-                while(resultSet.next()){
-                    if(resultSet.getInt(1) == 0){
-                        return null;
-                    }
-                }
-                stmt.close();
-                System.out.println("validation for video succeeded");
-            }catch(SQLException e){
-                System.out.println("validation for video failed");
+        List<Long> result = List.of();
+        String quest;
+        if(filter){
+            quest = "SELECT display_Danmu_distinct(?, ?, ?)";
+        }else{
+            quest = "SELECT display_Danmu_with_Repetition(?, ?, ?)";
+        }
+        try (Connection conn = dataSource.getConnection();
+            PreparedStatement stmt = conn.prepareStatement(quest)){
+            stmt.setString(1, bv);
+            stmt.setFloat(2, timeStart);
+            stmt.setFloat(3, timeEnd);
+            ResultSet resultset = stmt.executeQuery();
+            if(resultset.next()){
+                Array array = resultset.getArray(1);
+                Long[] result_set = (Long[]) array.getArray();
+                result = List.of(result_set);
             }
-
-            //Check whether the video is public.
-            String validation_public = "SELECT video_public (?)";
-            try(PreparedStatement stmt = conn.prepareStatement(validation_public)){
-                stmt.setString(1, bv);
-                ResultSet resultSet = stmt.executeQuery();
-                while(resultSet.next()){
-                    if(resultSet.getInt(1) == 0){
-                        return null;
-                    }
-                }
-                stmt.close();
-                System.out.println("validation for public video succeeded");
-            }catch (SQLException e){
-                System.out.println("validation for public video failed");
-            }
-
-            //Check whether the time is valid.
-            String validation_time = "SELECT time_valid (?, ?, ?)";
-            try(PreparedStatement stmt = conn.prepareStatement(validation_time)){
-                stmt.setString(1, bv);
-                stmt.setFloat(2, timeStart);
-                stmt.setFloat(3, timeEnd);
-                ResultSet resultSet = stmt.executeQuery();
-                while(resultSet.next()){
-                    if(resultSet.getInt(1) == 0){
-                        return null;
-                    }
-                }
-                stmt.close();
-                System.out.println("validation for time succeeded");
-            }catch (SQLException e){
-                System.out.println("validation for time failed");
-            }
-
-            //Check what quest to make. 
-            String quest;
-            if(filter){
-                quest = "SELECT display_Danmu_distinct(?, ?, ?)";
-            }else{
-                quest = "SELECT display_Danmu_with_Repetition(?, ?, ?)";
-            }
-            try(PreparedStatement stmt = conn.prepareStatement(quest)){
-                stmt.setString(1, bv);
-                stmt.setFloat(2, timeStart);
-                stmt.setFloat(3, timeEnd);
-                ResultSet resultSet = stmt.executeQuery();
-                while(resultSet.next()){
-                    result_danmus.add(Long.valueOf(resultSet.getLong(1)));
-                }
-            }catch (SQLException e){
-                System.out.println("Display Danmu failed.");
-            }
-            System.out.println("Display Danmu succeeded.");
+            stmt.close();
+            return result;
         }catch (SQLException e) {
             System.out.println("Connection failed");
         }
-        if(result_danmus != null){
-            return result_danmus;
-        }else{
-            return null;
-        }
+        return null;
     }
 
     /**

@@ -284,7 +284,7 @@ public class VideoServiceImpl implements VideoService {
      * If any of the corner case happened, an empty set shall be returned.
      */
     public Set<Integer> getHotspot(String bv) {
-        String getHotspot = "SELECT get_hotspot(?)";
+        String getHotspot = "SELECT find_hotspot(?)";
         Set<Integer> result = Set.of();
         try(Connection conn = dataSource.getConnection();
             PreparedStatement stmt = conn.prepareStatement(getHotspot)) {

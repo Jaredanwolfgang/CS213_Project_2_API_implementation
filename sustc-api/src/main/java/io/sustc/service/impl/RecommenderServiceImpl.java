@@ -2,6 +2,7 @@ package io.sustc.service.impl;
 
 import java.util.List;
 import java.util.Set;
+import java.sql.Array;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -36,18 +37,21 @@ public class RecommenderServiceImpl implements RecommenderService {
      */
     @Override
     public List<String> recommendNextVideo(String bv) {
-        String sql = "SELECT recommend_next_videos()";
+        String sql = "SELECT recommend_next_videos(?)";
         List<String> result = List.of();
         try(Connection conn = dataSource.getConnection();
             PreparedStatement stmt = conn.prepareStatement(sql)){
             stmt.setString(1, bv);
             ResultSet resultset = stmt.executeQuery();
-            while(resultset.next()){
-                result.add(resultset.getString(1));
+            if(resultset.next()){
+                Array array = resultset.getArray(1);
+                String[] result_set = (String[]) array.getArray();
+                result = List.of(result_set);
             }
+            stmt.close();
             return result;
         } catch (SQLException e) {
-            System.out.println("Connection Failed! Check output console");
+            log.error("Connection Failed! Check output console");
         }
         return null;
     }
@@ -85,16 +89,19 @@ public class RecommenderServiceImpl implements RecommenderService {
         if(pageSize <= 0 || pageNum <= 0){
             return null;
         }
-        String sql = "SELECT general_recommendations(?, ?)";
+        String sql = "SELECT general_recommendation(?, ?)";
         List<String> result = List.of();
         try(Connection conn = dataSource.getConnection();
             PreparedStatement stmt = conn.prepareStatement(sql)){
             stmt.setInt(1, pageSize);
             stmt.setInt(2, pageNum);
             ResultSet resultset = stmt.executeQuery();
-            while(resultset.next()){
-                result.add(resultset.getString(1));
+            if(resultset.next()){
+                Array array = resultset.getArray(1);
+                String[] result_set = (String[]) array.getArray();
+                result = List.of(result_set);
             }
+            stmt.close();
             return result;
         } catch (SQLException e) {
             System.out.println("Connection Failed! Check output console");
@@ -144,9 +151,12 @@ public class RecommenderServiceImpl implements RecommenderService {
             stmt.setInt(5, pageSize);
             stmt.setInt(6, pageNum);
             ResultSet resultset = stmt.executeQuery();
-            while(resultset.next()){
-                result.add(resultset.getString(1));
+            if(resultset.next()){
+                Array array = resultset.getArray(1);
+                String[] result_set = (String[]) array.getArray();
+                result = List.of(result_set);
             }
+            stmt.close();
             return result;
         } catch (SQLException e) {
             System.out.println("Connection Failed! Check output console");
@@ -178,7 +188,7 @@ public class RecommenderServiceImpl implements RecommenderService {
         if(pageSize <= 0 || pageNum <= 0){
             return null;
         }
-        String sql = "SELECT recommend_friends(?, ?, ?, ?, ?, ?)";
+        String sql = "SELECT recommend_friends_for_user(?, ?, ?, ?, ?, ?)";
         List<Long> result = List.of();
         try(Connection conn = dataSource.getConnection();
             PreparedStatement stmt = conn.prepareStatement(sql)){
@@ -189,9 +199,12 @@ public class RecommenderServiceImpl implements RecommenderService {
             stmt.setInt(5, pageSize);
             stmt.setInt(6, pageNum);
             ResultSet resultset = stmt.executeQuery();
-            while(resultset.next()){
-                result.add(resultset.getLong(1));
+            if(resultset.next()){
+                Array array = resultset.getArray(1);
+                Long[] result_set = (Long[]) array.getArray();
+                result = List.of(result_set);
             }
+            stmt.close();
             return result;
         } catch (SQLException e) {
             System.out.println("Connection Failed! Check output console");
