@@ -9,6 +9,15 @@ logging:
     root: off
     io.sustc: debug
 
+    hikari:
+      connection-timeout: 180000
+      leak-detection-threshold: 120000
+
+logging:
+  level:
+    root: off
+    io.sustc: debug
+
 ---
 
 benchmark:
