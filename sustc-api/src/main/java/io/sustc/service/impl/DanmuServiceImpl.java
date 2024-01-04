@@ -27,6 +27,7 @@ import lombok.extern.slf4j.Slf4j;
 public class DanmuServiceImpl implements DanmuService{
     @Autowired
     private DataSource dataSource;
+    
     /**
      * Sends a danmu to a video.
      * It is mandatory that the user shall watch the video first before he/she can send danmu to it.
@@ -47,83 +48,31 @@ public class DanmuServiceImpl implements DanmuService{
      */
     @Override
     public long sendDanmu(AuthInfo auth, String bv, String content, float time){
-        long mid = 0;
+        long danmu_id = 0;
         if(content == "" || content == null){
             return -1;
         }
-        try (Connection conn = dataSource.getConnection()){
-            //Check whether the bv is valid.
-            String validation_bv = "SELECT is_bv_valid (?)";
-            try(PreparedStatement stmt = conn.prepareStatement(validation_bv)){
-                stmt.setString(1, bv);
-                ResultSet resultSet = stmt.executeQuery();
-                while(resultSet.next()){
-                    if(resultSet.getInt(1) == 0){
-                        return -1;
-                    }
-                }
-                stmt.close();
-                System.out.println("validation for video succeeded");
-            }catch(SQLException e){
-                System.out.println("validation for video failed");
+        String sql = "SELECT send_danmu(?, ?, ?, ?, ?, ?::NUMERIC, ?)";
+        try (Connection conn = dataSource.getConnection();
+            PreparedStatement stmt = conn.prepareStatement(sql)){
+            stmt.setLong(1, auth.getMid());
+            stmt.setString(2, auth.getPassword());
+            stmt.setString(3, auth.getQq());
+            stmt.setString(4, auth.getWechat());
+            stmt.setString(5, bv);
+            stmt.setFloat(6, time);
+            stmt.setString(7, content);
+            ResultSet resultSet = stmt.executeQuery();
+            if(resultSet.next()){
+                danmu_id = resultSet.getLong(1);
+                //System.out.println("We have got the danmu_id: " + danmu_id);
             }
-            
-            //Check whether the video is public.
-            String validation_public = "SELECT video_public (?)";
-            try(PreparedStatement stmt = conn.prepareStatement(validation_public)){
-                stmt.setString(1, bv);
-                ResultSet resultSet = stmt.executeQuery();
-                while(resultSet.next()){
-                    if(resultSet.getInt(1) == 0){
-                        return -1;
-                    }
-                }
-                stmt.close();
-                System.out.println("validation for public video succeeded");
-            }catch (SQLException e){
-                System.out.println("validation for public video failed");
-            }
-
-            String validation_auth = "SELECT is_auth_valid(?, ?, ?, ?)";
-            try(PreparedStatement stmt = conn.prepareStatement(validation_auth)){
-                stmt.setLong(1, auth.getMid());
-                stmt.setString(2, auth.getPassword());
-                stmt.setString(3, auth.getQq());
-                stmt.setString(4, auth.getWechat());
-                ResultSet resultSet = stmt.executeQuery();
-                while(resultSet.next()){
-                    if(resultSet.getLong(1) == 0){
-                        return -1;
-                    }else{
-                        mid = resultSet.getLong(1);
-                    }
-                }
-                stmt.close();
-                System.out.println("SendDanmu validation succeeded.");
-            }catch (SQLException e){
-                System.out.println("SendDanmu validation failed.");
-            }
-
-            //After validation insert the data. 
-            String insert = "INSERT INTO danmu (bv, mid, content, displaytime, posttime) values";
-            insert += "(?, ?, ?, ?, ?)";
-            try(PreparedStatement stmt = conn.prepareStatement(insert)){
-                stmt.setString(1, bv);
-                stmt.setLong(2, mid);
-                stmt.setString(3, content);
-                stmt.setFloat(4, time);
-                LocalDateTime currentDateTime = LocalDateTime.now();
-                Timestamp timestamp = Timestamp.valueOf(currentDateTime);
-                stmt.setTimestamp(5, timestamp);
-                stmt.execute();
-                stmt.close();
-            } catch (SQLException e) {
-                System.out.println("Danmu not sent!");
-            }
+            stmt.close();
+            return danmu_id;
         }catch (SQLException e) {
-            System.out.println("Connection failed");
+            System.err.println(e.getMessage());
         }
-        return 0;
+        return -1;
     }
 
     /**
@@ -150,15 +99,10 @@ public class DanmuServiceImpl implements DanmuService{
      */
     @Override
     public List<Long> displayDanmu(String bv, float timeStart, float timeEnd, boolean filter){
+        String sql = (filter) ? "SELECT display_danmu_distinct(?, ?::NUMERIC, ?::NUMERIC)" : "SELECT display_danmu_with_repetition(?, ?::NUMERIC, ?::NUMERIC)";
         List<Long> result = List.of();
-        String quest;
-        if(filter){
-            quest = "SELECT display_Danmu_distinct(?, ?, ?)";
-        }else{
-            quest = "SELECT display_Danmu_with_Repetition(?, ?, ?)";
-        }
         try (Connection conn = dataSource.getConnection();
-            PreparedStatement stmt = conn.prepareStatement(quest)){
+            PreparedStatement stmt = conn.prepareStatement(sql)){
             stmt.setString(1, bv);
             stmt.setFloat(2, timeStart);
             stmt.setFloat(3, timeEnd);
@@ -171,7 +115,7 @@ public class DanmuServiceImpl implements DanmuService{
             stmt.close();
             return result;
         }catch (SQLException e) {
-            System.out.println("Connection failed");
+            System.err.println(e.getMessage());
         }
         return null;
     }
@@ -193,60 +137,29 @@ public class DanmuServiceImpl implements DanmuService{
      */
     @Override
     public boolean likeDanmu(AuthInfo auth, long id){
-        try(Connection conn = dataSource.getConnection()){
-            //Check whether the auth info is valid. 
-            long mid = 0;
-            String validation_auth = "SELECT is_auth_valid(?, ?, ?, ?)";
-            try(PreparedStatement stmt = conn.prepareStatement(validation_auth)){
-                stmt.setLong(1, auth.getMid());
-                stmt.setString(2, auth.getPassword());
-                stmt.setString(3, auth.getQq());
-                stmt.setString(4, auth.getWechat());
-                ResultSet resultSet = stmt.executeQuery();
-                while(resultSet.next()){
-                    if(resultSet.getLong(1) == 0){
-                        return false;
-                    }else{
-                        mid = resultSet.getLong(1);
-                    }
-                }
-                stmt.close();
-                System.out.println("Auth validation succeeded.");
-            }catch (SQLException e){
-                System.out.println("Auth validation failed.");
+        //log.info("likeDanmu: " + auth.toString() + " " + id);
+        //Check whether the auth info is valid. 
+        String sql = "SELECT like_danmu(?, ?, ?, ?, ?)";
+        try(Connection conn = dataSource.getConnection();
+            PreparedStatement stmt = conn.prepareStatement(sql)){
+            stmt.setLong(1, auth.getMid());
+            stmt.setString(2, auth.getPassword());
+            stmt.setString(3, auth.getQq());
+            stmt.setString(4, auth.getWechat());
+            stmt.setLong(5, id);
+            ResultSet resultSet = stmt.executeQuery();
+            long result = -1;
+            while(resultSet.next()){
+                result = resultSet.getLong(1);
             }
-
-            //Check whether the danmu is valid.
-            String validation_id = "SELECT is_danmu_valid (?)";
-            try(PreparedStatement stmt = conn.prepareStatement(validation_id)){
-                stmt.setLong(1, id);
-                ResultSet resultSet = stmt.executeQuery();
-                while(resultSet.next()){
-                    if(resultSet.getInt(1) == 0){
-                        return false;
-                    }
-                }
-                stmt.close();
-                System.out.println("validation for danmu succeeded");
-            }catch(SQLException e){
-                System.out.println("validation for danmu failed");
+            stmt.close();
+            if(result == -1){
+                return false;
             }
-
-            //Insert into Like Danmu
-            String insert = "INSERT INTO like_danmu (danmu_id, mid) values";
-            insert += "(?, ?)";
-            try(PreparedStatement stmt = conn.prepareStatement(insert)){
-                stmt.setLong(1, id);
-                stmt.setLong(2, mid);
-                stmt.execute();
-                stmt.close();
-                System.out.println("Like danmu inserted");
-            } catch (SQLException e) {
-                System.out.println("Likde danmu not inserted");
-            }
+            return true;
         }catch(SQLException e){
-            System.out.println("Connection failed.");
+            log.error(e.getMessage());
         }
-        return true;
+        return false;
     }   
 }

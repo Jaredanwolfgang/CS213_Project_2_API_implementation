@@ -1,13 +1,8 @@
 spring:
   datasource:
     url: jdbc:postgresql://localhost:5432/sustc  # change this to your own jdbc url
-    username: postgres  # change this to your own username (avoid using a superuser)
-    password: "041022"  # change this to your own password
-
-logging:
-  level:
-    root: off
-    io.sustc: debug
+    username: sustc  # change this to your own username (avoid using a superuser)
+    password: "000000"  # change this to your own password
 
     hikari:
       connection-timeout: 180000
@@ -17,9 +12,7 @@ logging:
   level:
     root: off
     io.sustc: debug
-
----
-
+    
 benchmark:
   data-path: data
   student-mode: true

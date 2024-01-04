@@ -1,0 +1,20 @@
+-- Active: 1698991389422@@127.0.0.1@5432@sustc@public
+CREATE ROLE sustc LOGIN PASSWORD '000000'; 
+GRANT SELECT, DELETE, UPDATE, INSERT, REFERENCES, TRUNCATE on ALL TABLES IN SCHEMA public to sustc;
+GRANT CONNECT ON DATABASE sustc TO sustc;
+--GRANT ALTER ON ALL TABLES IN SCHEMA public TO sustc;
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO sustc;
+GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO sustc;
+--Grant constraint creation to SUSTC
+GRANT ALL ON ALL TABLES IN SCHEMA public TO sustc;
+--Assign owner of tables to sustc 
+ALTER TABLE user_info OWNER TO sustc;
+ALTER TABLE video_info OWNER TO sustc;
+ALTER TABLE danmu OWNER TO sustc;
+ALTER TABLE coin OWNER TO sustc;
+ALTER TABLE like_video OWNER TO sustc;
+ALTER TABLE follow OWNER TO sustc;
+ALTER TABLE like_danmu OWNER TO sustc;
+ALTER TABLE favorite OWNER TO sustc;
+ALTER TABLE watch OWNER TO sustc;
+GRANT CREATE ON SCHEMA public TO sustc;

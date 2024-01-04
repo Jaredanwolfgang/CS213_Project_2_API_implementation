@@ -5,10 +5,13 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Array;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
-
+import java.sql.Timestamp;
+import java.time.LocalDateTime;
+ 
 import javax.sql.DataSource;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -47,7 +50,11 @@ public class VideoServiceImpl implements VideoService {
      * If any of the corner case happened, {@code null} shall be returned.
      */
     public String postVideo(AuthInfo auth, PostVideoReq req) {
-        String postVideo = "SELECT create_video(?, ?, ?, ?, ?, ?, ?, ?)";
+        String postVideo = "SELECT create_video(?, ?, ?, ?, ?, ?, ?::NUMERIC, ?)";
+        if(req.getTitle() == null || req.getTitle().isEmpty() || req.getDuration() < 10 || 
+        req.getPublicTime() == null || (req.getPublicTime() != null && req.getPublicTime().before(Timestamp.valueOf(LocalDateTime.now())))){
+            return null;
+        }
         try(Connection conn = dataSource.getConnection();
             PreparedStatement stmt = conn.prepareStatement(postVideo)) {
             stmt.setLong(1, auth.getMid());
@@ -100,7 +107,7 @@ public class VideoServiceImpl implements VideoService {
             }
             return false;
         } catch (SQLException e) {
-            log.error("Failed to delete video", e);
+            log.debug(e.getMessage());
             return false;
         }
     }
@@ -128,7 +135,11 @@ public class VideoServiceImpl implements VideoService {
      * If any of the corner case happened, {@code false} shall be returned.
      */
     public boolean updateVideoInfo(AuthInfo auth, String bv, PostVideoReq req) {
-        String updateVideo = "SELECT update_video(?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        if(req.getTitle() == null || req.getTitle().isEmpty() || req.getDuration() < 10 || 
+        req.getPublicTime() == null || (req.getPublicTime() != null && req.getPublicTime().before(Timestamp.valueOf(LocalDateTime.now())))){
+            return false;
+        }
+        String updateVideo = "SELECT update_video(?, ?, ?, ?, ?, ?, ?, ?::NUMERIC, ?)";
         try(Connection conn = dataSource.getConnection();
             PreparedStatement stmt = conn.prepareStatement(updateVideo)) {
             stmt.setLong(1, auth.getMid());
@@ -208,7 +219,26 @@ public class VideoServiceImpl implements VideoService {
         if(keywords == null || keywords.isEmpty() || pageSize <= 0 || pageNum <= 0){
             return null;
         }
+        keywords = keywords.replace("\\", "\\\\")
+                        .replace("%", "\\%")
+                        .replace("_", "\\_")
+                        .replace("[", "\\[")
+                        .replace("]", "\\]")
+                        .replace("^", "\\^")
+                        .replace("$", "\\$")
+                        .replace(".", "\\.")
+                        .replace("|", "\\|")
+                        .replace("?", "\\?")
+                        .replace("*", "\\*")
+                        .replace("+", "\\+")
+                        .replace("(", "\\(")
+                        .replace(")", "\\)")
+                        .replace("{", "\\{")
+                        .replace("}", "\\}")
+                        .replace("!", "\\!")
+                        .replaceAll(" +", " ");
         String[] keyword = keywords.split(" ");
+        //System.out.println("The keywords are: " + Arrays.toString(keyword));
         String searchVideoSql = "SELECT search_video(?, ?, ?, ?, ?, ?, ?)";
         List<String> result = null;
         try(Connection conn = dataSource.getConnection();
@@ -370,10 +400,11 @@ public class VideoServiceImpl implements VideoService {
             ResultSet resultset = stmt.executeQuery();
             if(resultset.next()){
                 return resultset.getBoolean(1);
+            }else{
+                return false;
             }
-            return false;
         } catch (SQLException e) {
-            log.error("Failed to coin video", e);
+            //log.error("Failed to coin video", e);
             return false;
         }
     }
@@ -411,9 +442,9 @@ public class VideoServiceImpl implements VideoService {
             }
             return false;
         } catch (SQLException e) {
-            log.error("Failed to like video", e);
-            return false;
+            e.printStackTrace();
         }
+        return false;
     }
 
     @Override

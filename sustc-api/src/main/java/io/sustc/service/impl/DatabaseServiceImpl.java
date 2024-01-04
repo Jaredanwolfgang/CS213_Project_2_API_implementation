@@ -4,7 +4,9 @@ import io.sustc.dto.DanmuRecord;
 import io.sustc.dto.UserRecord;
 import io.sustc.dto.VideoRecord;
 import io.sustc.service.DatabaseService;
+
 import lombok.extern.slf4j.Slf4j;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -45,11 +47,22 @@ public class DatabaseServiceImpl implements DatabaseService {
             List<UserRecord> userRecords,
             List<VideoRecord> videoRecords
     ) {
-        System.out.println(danmuRecords.size());
-        System.out.println(userRecords.size());
-        System.out.println(videoRecords.size());
-        int batch = 50000;
-        //Thread 1 insert user_info and follow
+        int batch = 1000000;
+        String drop_constraint = "SELECT drop_constraints_foreign_keys()";
+        String drop_indexes = "SELECT drop_all_indexes()";
+        try(Connection conn = dataSource.getConnection();
+            PreparedStatement constraint_stmt = conn.prepareStatement(drop_constraint);
+            PreparedStatement index_stmt = conn.prepareStatement(drop_indexes)){
+            constraint_stmt.executeQuery();
+            index_stmt.executeQuery();
+            constraint_stmt.close();
+            index_stmt.close();
+            System.out.println("Foreign Keys and indexes dropped");
+        }catch(SQLException e){
+            log.debug(e.getMessage());
+            System.out.println("Foreign Keys and indexes timeout.");
+        }
+        //Thread 1
         Thread thread_1 = new Thread(new Runnable() {
             @Override
             public void run() {
@@ -57,9 +70,8 @@ public class DatabaseServiceImpl implements DatabaseService {
                 try(Connection conn_1 = dataSource.getConnection()){
                     conn_1.setAutoCommit(false);
                     //Import User Records
-                    String sql_user = "INSERT INTO user_info (mid, name, gender, birthday, level, sign, identity, password, qq, wechat) values";
-                    sql_user += "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-                    long userInsertStartTime = System.currentTimeMillis();
+                    String sql_user = "INSERT INTO user_info (mid, name, gender, birthday, level, sign, identity, password, qq, wechat, coin) values";
+                    sql_user += "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
                     try(PreparedStatement user_stmt = conn_1.prepareStatement(sql_user)){
                         for (int i = 0; i < userRecords.size(); i++) {
                             user_stmt.setLong(1, userRecords.get(i).getMid());
@@ -72,24 +84,23 @@ public class DatabaseServiceImpl implements DatabaseService {
                             user_stmt.setString(8, userRecords.get(i).getPassword());
                             user_stmt.setString(9, userRecords.get(i).getQq());
                             user_stmt.setString(10, userRecords.get(i).getWechat());
+                            user_stmt.setLong(11, userRecords.get(i).getCoin());
                             user_stmt.addBatch();
                         }
                     user_stmt.executeBatch();
                     conn_1.commit();
                     user_stmt.close();
+                    System.out.println("[Thread 1] User Info inserted");
                     }catch(SQLException e){
+                        log.debug(e.getMessage());
                         System.out.println("[Thread 1] User_info Insertion failed.");
                     }
-                    long userInsertEndTime = System.currentTimeMillis();
-                    System.out.println("[Thread 1] User_info insertion time is " + (userInsertEndTime - userInsertStartTime) + " ms");
-
                     //Import Follow Records
                     String sql_follow = "INSERT INTO follow (follower, followee) values";
                     sql_follow += "(?, ?)";
-                    long userFollowStartTime = System.currentTimeMillis();
                     int count = 0;
                     try(PreparedStatement follow_stmt = conn_1.prepareStatement(sql_follow)){
-                        for (int i = 0; i < userRecords.size(); i++) {
+                        for (int i = 0; i < userRecords.size() / 4; i++) {
                             for (int j = 0; j < userRecords.get(i).getFollowing().length; j++) {
                                 follow_stmt.setLong(1, userRecords.get(i).getMid());
                                 follow_stmt.setLong(2, userRecords.get(i).getFollowing()[j]);
@@ -98,20 +109,19 @@ public class DatabaseServiceImpl implements DatabaseService {
                                 if(count % batch == 0){
                                     follow_stmt.executeBatch();
                                     conn_1.commit();
-                                    System.out.println("[Thread 1] " + count + " records inserted.");
                                 }
                             }
                         }
                         follow_stmt.executeBatch();
                         conn_1.commit();
                         follow_stmt.close();
+                        System.out.println("[Thread 1] Follow inserted");
                     }catch(SQLException e){
+                        log.debug(e.getMessage());
                         System.out.println("[Thread 1] Follow Insertion failed.");
                     }
-                    long userFollowEndTime = System.currentTimeMillis();
-                    System.out.println("[Thread 1] Follow insertion time is " + (userFollowEndTime - userFollowStartTime) + " ms");
-
                 }catch (SQLException e) {
+                    log.debug(e.getMessage());
                     System.out.println("Connection 1 timeout!");
                 }
                 System.out.println("Thread 1 ends running.");
@@ -128,8 +138,7 @@ public class DatabaseServiceImpl implements DatabaseService {
                     //Import Video Records
                     String sql_video = "INSERT INTO video_info (bv, title, ownerMID, commitTime, publicTime, reviewTime, reviewerMID, duration, description) values";
                     sql_video += "(?, ?, ?, ?, ?, ?, ?, ?, ?)";
-                    long videoInsertStartTime = System.currentTimeMillis();
-                     try(PreparedStatement video_stmt = conn_2.prepareStatement(sql_video)){
+                    try(PreparedStatement video_stmt = conn_2.prepareStatement(sql_video)){
                         for (int i = 0; i < videoRecords.size(); i++) {
                             video_stmt.setString(1, videoRecords.get(i).getBv());
                             video_stmt.setString(2, videoRecords.get(i).getTitle());
@@ -145,16 +154,14 @@ public class DatabaseServiceImpl implements DatabaseService {
                         video_stmt.executeBatch();
                         conn_2.commit();
                         video_stmt.close();
+                        System.out.println("[Thread 2] Video Inserted.");
                     }catch(SQLException e){
+                        log.debug(e.getMessage());
                         System.out.println("[Thread 2] Video Insertion failed.");
                     }
-                    long videoInsertEndTime = System.currentTimeMillis();
-                    System.out.println("[Thread 2] The video insertion time is " + (videoInsertEndTime - videoInsertStartTime) + " ms");
-
                     //Watch Relation Insertion
                     String watch_sql = "INSERT INTO Watch (bv, mid, watchduration) VALUES";
                     watch_sql += "(?, ?, ?)";
-                    long watchInsertStartTime = System.currentTimeMillis();
                     int count = 0;
                     try(PreparedStatement watch_stmt = conn_2.prepareStatement(watch_sql)){
                         for (int i = 0; i < videoRecords.size(); i++) {
@@ -169,20 +176,44 @@ public class DatabaseServiceImpl implements DatabaseService {
                                 if(count % batch == 0){
                                     watch_stmt.executeBatch();
                                     conn_2.commit();
-                                    System.out.println("[Thread 2] " + count + " records inserted.");
                                 }
                             }
                         }
                         watch_stmt.executeBatch(); 
                         conn_2.commit();
                         watch_stmt.close();
+                        System.out.println("[Thread 2] Watch Inserted.");
                     }catch(SQLException e){
+                        log.debug(e.getMessage());
                         System.out.println("[Thread 2] Watch Insertion failed.");
                     }
-                    long watchInsertEndTime = System.currentTimeMillis();
-                    System.out.println("[Thread 2] The watch insertion time is " + (watchInsertEndTime - watchInsertStartTime) + " ms");
-
+                    //Import Follow Records
+                    String sql_follow = "INSERT INTO follow (follower, followee) values";
+                    sql_follow += "(?, ?)";
+                    int count_ = 0;
+                    try(PreparedStatement follow_stmt = conn_2.prepareStatement(sql_follow)){
+                        for (int i = userRecords.size() / 4; i < userRecords.size() * 2 / 4; i++) {
+                            for (int j = 0; j < userRecords.get(i).getFollowing().length; j++) {
+                                follow_stmt.setLong(1, userRecords.get(i).getMid());
+                                follow_stmt.setLong(2, userRecords.get(i).getFollowing()[j]);
+                                follow_stmt.addBatch();
+                                count_++;
+                                if(count_ % batch == 0){
+                                    follow_stmt.executeBatch();
+                                    conn_2.commit();
+                                }
+                            }
+                        }
+                        follow_stmt.executeBatch();
+                        conn_2.commit();
+                        follow_stmt.close();
+                        System.out.println("[Thread 2] Follow inserted");
+                    }catch(SQLException e){
+                        log.debug(e.getMessage());
+                        System.out.println("[Thread 2] Follow Insertion failed.");
+                    }
                 }catch(SQLException e){
+                    log.debug(e.getMessage());
                     System.out.println("Connection 2 timeout!");
                 }
                 System.out.println("Thread 2 ends running.");
@@ -198,8 +229,7 @@ public class DatabaseServiceImpl implements DatabaseService {
                     conn_3.setAutoCommit(false);
                     //Import Danmu Records
                     String sql_danmu = "INSERT INTO danmu (bv, mid, displaytime, content, posttime) VALUES (?, ?, ?, ?, ?) RETURNING Danmu_ID";
-                    String sql_like_danmu = "INSERT INTO like_danmu (Danmu_id, mid) VALUES (?, ?)";
-                    long danmuInsertStartTime = System.currentTimeMillis();            
+                    String sql_like_danmu = "INSERT INTO like_danmu (Danmu_id, mid) VALUES (?, ?)";       
                     try(PreparedStatement danmu_stmt = conn_3.prepareStatement(sql_danmu);
                         PreparedStatement like_danmu_stmt = conn_3.prepareStatement(sql_like_danmu)) {
                         for (int i = 0; i < danmuRecords.size(); i++) {
@@ -228,16 +258,14 @@ public class DatabaseServiceImpl implements DatabaseService {
                         conn_3.commit();
                         danmu_stmt.close();
                         like_danmu_stmt.close();
+                        System.out.println("[Thread 3] Danmu Inserted.");
                     }catch (SQLException e) {
+                        log.debug(e.getMessage());
                         System.out.println("[Thread 3] Danmu Insertion failed.");
                     }
-                    long danmuInsertEndTime = System.currentTimeMillis();
-                    System.out.println("[Thread 3] The danmu insertion time is " + (danmuInsertEndTime - danmuInsertStartTime) + " ms");
-                    
                     //Like Video Insertion
                     String like_sql = "INSERT INTO Like_video (bv, mid) VALUES";
                     like_sql += "(?, ?)";
-                    long likeInsertStartTime = System.currentTimeMillis();
                     int count = 0;
                     try(PreparedStatement like_stmt = conn_3.prepareStatement(like_sql)){
                         for (int i = 0; i < videoRecords.size(); i++) {
@@ -250,19 +278,45 @@ public class DatabaseServiceImpl implements DatabaseService {
                                 if(count % batch== 0){
                                     like_stmt.executeBatch();
                                     conn_3.commit();
-                                    System.out.println("[Thread 3] " + count + " records inserted.");
+                                    //System.out.println("[Thread 3] " + count + " records inserted.");
                                 }
                             }
                         }
                         like_stmt.executeBatch();
                         conn_3.commit();
                         like_stmt.close();
+                        System.out.println("[Thread 3] Like Video Inserted.");
                     }catch(SQLException e){
+                        log.debug(e.getMessage());
                         System.out.println("[Thread 3] Like Video Insertion failed.");
                     }
-                    long likeInsertEndTime = System.currentTimeMillis();
-                    System.out.println("[Thread 3] The like insertion time is " + (likeInsertEndTime - likeInsertStartTime) + " ms");
+                    //Import Follow Records
+                    String sql_follow = "INSERT INTO follow (follower, followee) values";
+                    sql_follow += "(?, ?)";
+                    int count_ = 0;
+                    try(PreparedStatement follow_stmt = conn_3.prepareStatement(sql_follow)){
+                        for (int i = userRecords.size() * 2 / 4; i < userRecords.size() * 3 / 4; i++) {
+                            for (int j = 0; j < userRecords.get(i).getFollowing().length; j++) {
+                                follow_stmt.setLong(1, userRecords.get(i).getMid());
+                                follow_stmt.setLong(2, userRecords.get(i).getFollowing()[j]);
+                                follow_stmt.addBatch();
+                                count_++;
+                                if(count_ % batch == 0){
+                                    follow_stmt.executeBatch();
+                                    conn_3.commit();
+                                }
+                            }
+                        }
+                        follow_stmt.executeBatch();
+                        conn_3.commit();
+                        follow_stmt.close();
+                        System.out.println("[Thread 3] Follow inserted");
+                    }catch(SQLException e){
+                        log.debug(e.getMessage());
+                        System.out.println("[Thread 3] Follow Insertion failed.");
+                    }
                 }catch(SQLException e){
+                    log.debug(e.getMessage());
                    System.out.println("Connection 3 timeout!");
                 }
                 System.out.println("Thread 3 ends running.");
@@ -273,7 +327,7 @@ public class DatabaseServiceImpl implements DatabaseService {
         Thread thread_4 = new Thread(new Runnable(){
             @Override
             public void run(){
-                System.out.println("Thread 4 starts running.");
+                //System.out.println("Thread 4 starts running.");
                 try(Connection conn_4 = dataSource.getConnection()){
                     conn_4.setAutoCommit(false);
                     //Import Coin/Favorite Records
@@ -281,7 +335,6 @@ public class DatabaseServiceImpl implements DatabaseService {
                     coin_sql += "(?, ?)";
                     String favorite_sql = "INSERT INTO Favorite (bv, mid) VALUES";
                     favorite_sql += "(?, ?)";
-                    long coinInsertStartTime = System.currentTimeMillis();
                     try(PreparedStatement coin_stmt = conn_4.prepareStatement(coin_sql);
                         PreparedStatement fav_stmt = conn_4.prepareStatement(favorite_sql)){
                         for (int i = 0; i < videoRecords.size(); i++) {
@@ -304,38 +357,38 @@ public class DatabaseServiceImpl implements DatabaseService {
                         conn_4.commit();
                         coin_stmt.close();
                         fav_stmt.close();
+                        System.out.println("[Thread 4] Coin/Fav Inserted.");
                     }catch(SQLException e){
+                        log.debug(e.getMessage());
                         System.out.println("[Thread 4] Coin/Fav Insertion failed.");
                     }
-                    long coinInsertEndTime = System.currentTimeMillis();
-                    System.out.println("[Thread 4] The coin/fav insertion time is " + (coinInsertEndTime - coinInsertStartTime) + " ms");
-
-                    //Add view
-                    String view_public_video_sql = "CREATE OR REPLACE VIEW public_video AS\r\n" + //
-                            "    SELECT video_info.bv AS bv\r\n" + //
-                            "    FROM video_info\r\n" + //
-                            "    where reviewtime IS NOT NULL\r\n" + //
-                            "    AND publictime < NOW()\r\n" + //
-                            "    AND reviewtime < NOW();";
-                    String view_watch_rate_sql = "CREATE OR REPLACE VIEW watch_rate AS\r\n" + //
-                            "SELECT video_info.bv AS bv, avg(watch.watchduration/video_info.duration) AS watch_rate\r\n" + //
-                            "FROM video_info, watch\r\n" + //
-                            "WHERE video_info.bv = watch.bv\r\n" + //
-                            "GROUP BY video_info.bv;";
-                    long viewInsertStartTime = System.currentTimeMillis();
-                    try(PreparedStatement view_stmt = conn_4.prepareStatement(view_public_video_sql);
-                        PreparedStatement view_stmt_2 = conn_4.prepareStatement(view_watch_rate_sql)){
-                        view_stmt.executeUpdate();
-                        view_stmt_2.executeUpdate();
+                    //Import Follow Records
+                    String sql_follow = "INSERT INTO follow (follower, followee) values";
+                    sql_follow += "(?, ?)";
+                    int count_ = 0;
+                    try(PreparedStatement follow_stmt = conn_4.prepareStatement(sql_follow)){
+                        for (int i = userRecords.size() * 3 / 4; i < userRecords.size(); i++) {
+                            for (int j = 0; j < userRecords.get(i).getFollowing().length; j++) {
+                                follow_stmt.setLong(1, userRecords.get(i).getMid());
+                                follow_stmt.setLong(2, userRecords.get(i).getFollowing()[j]);
+                                follow_stmt.addBatch();
+                                count_++;
+                                if(count_ % batch == 0){
+                                    follow_stmt.executeBatch();
+                                    conn_4.commit();
+                                }
+                            }
+                        }
+                        follow_stmt.executeBatch();
                         conn_4.commit();
-                        view_stmt.close();
-                        view_stmt_2.close();
+                        follow_stmt.close();
+                        System.out.println("[Thread 4] Follow inserted");
                     }catch(SQLException e){
-                        System.out.println("[Thread 4] View Insertion failed.");
+                        log.debug(e.getMessage());
+                        System.out.println("[Thread 4] Follow Insertion failed.");
                     }
-                    long viewInsertEndTime = System.currentTimeMillis();
-                    System.out.println("[Thread 4] The view insertion time is " + (viewInsertEndTime - viewInsertStartTime) + " ms");
                 }catch(SQLException e){
+                    log.debug(e.getMessage());
                     System.out.println("Connection 4 timeout!");
                 }
                 System.out.println("Thread 4 ends running.");
@@ -352,6 +405,20 @@ public class DatabaseServiceImpl implements DatabaseService {
             thread_4.join();
         }catch(InterruptedException e){
             System.out.println("Thread interrupted!");
+        }
+        String add_constraint = "SELECT add_constraints_foreign_keys()";
+        String add_indexes = "SELECT add_all_indexes()";
+        try(Connection conn = dataSource.getConnection();
+            PreparedStatement constraint_stmt = conn.prepareStatement(add_constraint);
+            PreparedStatement index_stmt = conn.prepareStatement(add_indexes)){
+            constraint_stmt.executeQuery();
+            index_stmt.executeQuery();
+            constraint_stmt.close();
+            index_stmt.close();
+            System.out.println("Foreign keys and indexes created");
+        }catch(SQLException e){
+            log.debug(e.getMessage());
+            System.out.println("Constraint Insertion failed.");
         }
     }    
     /*
